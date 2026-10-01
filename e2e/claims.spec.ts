@@ -186,7 +186,11 @@ test.describe('Exhibit 4, the negative claim: VERIFIED — AND LEAKED', () => {
     await expect(page.locator('#ru-v2')).toHaveText('✓ message 2 verifies');
     // 3. the limitation is visible in this state, not in a README
     await expect(page.locator('#ru-claim')).toBeVisible();
-    await expect(page.locator('#ru-claim')).toContainText('confidentiality for two messages that share an ICN');
+    // Both halves of the claim, because each is load-bearing: what is lost, and
+    // that every check still passes. Weakening either half must fail here.
+    await expect(page.locator('#ru-claim')).toContainText('confidentiality for two messages that share an ICN under one key');
+    await expect(page.locator('#ru-claim')).toContainText('Both still decrypt and verify');
+    await expect(page.locator('#ru-claim')).toContainText('nothing it checks is wrong');
     // and the leak itself, re-derived here: (C1 xor C2) xor P1 = P2
     const xc = bytes((await page.locator('#ru-xc').textContent())!);
     const recovered = dec.decode(xc.map((b, i) => b ^ enc.encode(p1)[i]));
