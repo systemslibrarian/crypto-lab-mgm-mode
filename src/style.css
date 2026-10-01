@@ -1,0 +1,159 @@
+/* MGM Mode. Dark is the only theme (audits/_MASTER-TEMPLATE.md §3.2 in the
+   catalog). Every text/background pair below is chosen for WCAG AA:
+   --text on --bg 15.9:1, --text-dim 7.9:1, --accent 7.0:1, --ok 8.2:1,
+   --bad 7.4:1, --warn 9.3:1 — all measured against --bg and --surface. */
+:root {
+  color-scheme: dark;
+  --accent: #9f88ff;
+  --bg: #0d1117;
+  --surface: #151b24;
+  --surface-2: #1c2430;
+  --border: #3b4656;
+  --border-strong: #7a8699;
+  --text: #e8edf3;
+  --text-dim: #a9b4c2;
+  --ok: #56d364;
+  --bad: #ff8f87;
+  --warn: #e3b341;
+  --mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+
+html { background-color: var(--bg); }
+/* The [hidden] cascade trap: any class rule that sets display (dl.kv is a grid)
+   outranks the UA's [hidden] { display: none }, and the element paints while
+   the code believes it is hidden. claims.spec.ts probes it. */
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background-color: var(--bg);
+  color: var(--text);
+  font: 16px/1.55 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+#app { max-width: 72rem; margin: 0 auto; padding: 0 clamp(1rem, 3vw, 2rem) 2rem; outline: none; }
+#app a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+#app code, .mono { font-family: var(--mono); font-size: .9em; overflow-wrap: anywhere; }
+
+/* Standard hero, §3.1. */
+.cl-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:clamp(1rem,4vw,3rem);flex-wrap:wrap;margin:clamp(1rem,3vw,2rem) 0 1.5rem;}
+.cl-hero-main{flex:1 1 22rem;min-width:min(100%,20rem);}
+.cl-hero-title{margin:0;font-size:clamp(1.6rem,3.8vw,2.7rem);font-weight:700;line-height:1.1;letter-spacing:.01em;}
+.cl-hero-sub{margin:.4rem 0 0;font-size:clamp(.9rem,1.6vw,1.05rem);letter-spacing:.01em;color:var(--text-dim);}
+.cl-hero-desc{margin:.55rem 0 0;font-size:1rem;line-height:1.5;color:var(--text-dim);max-width:60ch;}
+.cl-hero-why{flex:0 1 min(40%,26rem);min-width:min(100%,15rem);border:1px solid var(--border);border-radius:10px;padding:.85rem 1.05rem;background:color-mix(in oklab,var(--accent) 6%,transparent);}
+.cl-hero-why-label{display:block;font-size:.68rem;font-weight:700;letter-spacing:.14em;color:var(--accent);}
+.cl-hero-why-text{margin:.35rem 0 0;font-size:.95rem;line-height:1.5;}
+/* border-box: on phones the why-box is width:100%, and content-box sizing added
+   its padding and border on top, pushing a 380px page to 400px. */
+.cl-hero-why{box-sizing:border-box;}
+@media (max-width:640px){.cl-hero{flex-direction:column;align-items:stretch;}.cl-hero-why{flex-basis:auto;width:100%;}}
+
+.intro, .exhibit {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: clamp(1rem, 2.5vw, 1.6rem);
+  margin: 0 0 1.4rem;
+}
+h2 { margin: 0 0 .6rem; font-size: 1.3rem; line-height: 1.3; }
+h3 { margin: 1.2rem 0 .4rem; font-size: 1.05rem; }
+.num {
+  display: inline-grid; place-items: center; width: 1.8rem; height: 1.8rem; margin-right: .5rem;
+  border: 1.5px solid var(--accent); border-radius: 8px; color: var(--accent); font-size: .95rem;
+}
+p { margin: .5rem 0; max-width: 75ch; }
+.hint { color: var(--text-dim); font-size: .92rem; }
+.caveat { border-left: 3px solid var(--warn); padding-left: .8rem; color: var(--text-dim); }
+.claim { border-left: 3px solid var(--bad); padding: .4rem .8rem; background-color: var(--surface-2); border-radius: 0 8px 8px 0; }
+.toc ol { margin: .4rem 0 0; padding-left: 1.4rem; columns: 2 18rem; }
+
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); gap: 1rem; margin: .8rem 0; }
+.stack { display: flex; flex-direction: column; gap: .35rem; margin: .6rem 0; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin: .8rem 0; }
+label { font-weight: 600; font-size: .92rem; }
+label.check { font-weight: 400; display: inline-flex; gap: .4rem; align-items: center; }
+
+fieldset.choice { border: 1px solid var(--border); border-radius: 10px; padding: .6rem .9rem; margin: 0; }
+fieldset.choice legend { font-weight: 600; font-size: .92rem; padding: 0 .3rem; }
+fieldset.choice label { display: flex; align-items: center; gap: .45rem; font-weight: 400; margin: .3rem 0; }
+
+input, textarea, select, button { font: inherit; color: var(--text); }
+input:not([type]), input[type='text'], textarea, select {
+  background-color: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: .5rem .6rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+.hex { font-family: var(--mono); font-size: .88rem; }
+select {
+  appearance: none;
+  width: auto;
+  /* An option's text sets a select's intrinsic width; without a cap the RFC
+     example picker alone pushed a 380px page to 556px. */
+  max-width: 100%;
+  min-width: 0;
+  padding-right: 2rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%23a9b4c2' stroke-width='2' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right .7rem center;
+}
+input[type='range'] { width: min(100%, 32rem); accent-color: var(--accent); }
+input[type='radio'], input[type='checkbox'] { accent-color: var(--accent); width: 1.1rem; height: 1.1rem; }
+
+button {
+  background-color: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: .5rem .85rem;
+  cursor: pointer;
+  min-height: 2.5rem;
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button.primary { background-color: var(--accent); border-color: var(--accent); color: #120c2b; font-weight: 700; }
+button:disabled { color: var(--text-dim); cursor: not-allowed; border-style: dashed; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.status, .verdict { margin: .7rem 0; padding: .55rem .8rem; border-radius: 8px; border: 1px solid var(--border); background-color: var(--surface-2); }
+.verdict-icon { font-weight: 700; margin-right: .5rem; }
+.verdict-ok { border-color: var(--ok); color: var(--ok); }
+.verdict-bad { border-color: var(--bad); color: var(--bad); }
+.verdict-warn { border-color: var(--warn); color: var(--warn); }
+.verdict-idle { color: var(--text-dim); }
+.ok-text { color: var(--ok); }
+.bad-text { color: var(--bad); }
+.warn-text { color: var(--warn); }
+
+.out { border-top: 1px dashed var(--border); margin-top: 1rem; padding-top: .4rem; }
+
+.table-wrap { overflow-x: auto; margin: .8rem 0; border: 1px solid var(--border); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; font-size: .86rem; }
+caption { text-align: left; padding: .5rem .7rem; color: var(--text-dim); font-size: .85rem; }
+th, td { text-align: left; padding: .4rem .6rem; border-top: 1px solid var(--border); vertical-align: top; }
+thead th { background-color: var(--surface-2); font-size: .82rem; }
+tbody th { font-family: var(--mono); font-weight: 600; white-space: nowrap; }
+table.coeff td.mono { white-space: nowrap; }
+table.coeff tr.done td.mgm { color: var(--accent); }
+td.match-yes { color: var(--ok); white-space: nowrap; }
+td.match-no { color: var(--bad); white-space: nowrap; }
+table.sbox td { font-family: var(--mono); text-align: center; padding: .3rem; }
+table.sbox td.swapped { outline: 2px solid var(--warn); outline-offset: -2px; color: var(--warn); font-weight: 700; }
+
+ol.walk { font-family: var(--mono); font-size: .82rem; padding-left: 1.4rem; overflow-wrap: anywhere; }
+ol.walk li { margin: .35rem 0; }
+ol.walk .k { display: inline-block; min-width: 2.6rem; font-weight: 700; color: var(--accent); }
+ol.walk li.final { color: var(--ok); }
+
+dl.kv { display: grid; grid-template-columns: minmax(10rem, max-content) 1fr; gap: .35rem 1rem; margin: .8rem 0; }
+dl.kv dt { font-weight: 600; color: var(--text-dim); }
+dl.kv dd { margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 640px) { dl.kv { grid-template-columns: 1fr; } dl.kv dd { margin-bottom: .5rem; } }
+ul.plain { padding-left: 1.2rem; }
+
+.limits ul { padding-left: 1.2rem; }
+
+.scripture-footer { border-top: 1px solid var(--border); margin-top: 2rem; padding-top: 1rem; color: var(--text-dim); font-size: .9rem; text-align: center; }
+.scripture-footer p { max-width: none; }
+
+@media (prefers-reduced-motion: no-preference) { button { transition: border-color .15s; } }

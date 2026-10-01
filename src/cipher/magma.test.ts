@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Magma, magmaG, magmaRoundKeys, magmaRounds, magmaT } from './magma';
+import { Magma, SBOX_PARAM_Z, magmaG, magmaRoundKeys, magmaRounds, magmaT } from './magma';
 import { bytesToHex, hexToBytes } from './bytes';
 
 // Every value below is copied from RFC 8891 Appendix A.
@@ -62,5 +62,17 @@ describe('Magma, RFC 8891 Appendix A', () => {
   it('rejects a wrong-length key or block', () => {
     expect(() => new Magma(new Uint8Array(16))).toThrow(/32-byte key/);
     expect(() => new Magma(KEY).encryptBlock(new Uint8Array(16))).toThrow(/8 bytes/);
+  });
+});
+
+describe('a different S-box set is a different cipher', () => {
+  it('swapping two entries of one param-Z row changes the RFC test ciphertext, and still round-trips', () => {
+    const swapped = SBOX_PARAM_Z.map((row) => row.slice());
+    [swapped[0][0], swapped[0][1]] = [swapped[0][1], swapped[0][0]];
+    const variant = new Magma(KEY, swapped);
+    const block = hexToBytes('fedcba9876543210');
+    const out = bytesToHex(variant.encryptBlock(block));
+    expect(out).not.toBe('4ee901e5c2d8ca3d');
+    expect(bytesToHex(variant.decryptBlock(hexToBytes(out)))).toBe('fedcba9876543210');
   });
 });

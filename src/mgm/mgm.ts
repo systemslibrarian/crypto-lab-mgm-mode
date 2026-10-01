@@ -119,7 +119,7 @@ function computeTag(cipher: BlockCipher, icn: Uint8Array, aad: Uint8Array, ct: U
   const z: Uint8Array[] = [cipher.encryptBlock(authSeed)];
   const h: Uint8Array[] = [];
   const runningSum: Uint8Array[] = [];
-  let sum = new Uint8Array(n);
+  let sum: Uint8Array = new Uint8Array(n);
   for (const { block } of authBlocks) {
     const hi = cipher.encryptBlock(z[z.length - 1]);
     h.push(hi);

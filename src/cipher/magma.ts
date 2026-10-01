@@ -28,18 +28,20 @@ export const SBOX_PARAM_Z: readonly (readonly number[])[] = [
 ];
 
 /** t: V_32 -> V_32, the eight parallel 4-bit substitutions (RFC 8891 4.2). */
-export function magmaT(a: number): number {
+export type SBoxSet = readonly (readonly number[])[];
+
+export function magmaT(a: number, sbox: SBoxSet = SBOX_PARAM_Z): number {
   let out = 0;
   for (let i = 0; i < 8; i++) {
     const nibble = (a >>> (4 * i)) & 0xf;
-    out |= SBOX_PARAM_Z[i][nibble] << (4 * i);
+    out |= sbox[i][nibble] << (4 * i);
   }
   return out >>> 0;
 }
 
 /** g[k](a) = t(a [+] k) <<< 11 (RFC 8891 4.2). */
-export function magmaG(k: number, a: number): number {
-  const s = magmaT((a + k) >>> 0);
+export function magmaG(k: number, a: number, sbox: SBoxSet = SBOX_PARAM_Z): number {
+  const s = magmaT((a + k) >>> 0, sbox);
   return ((s << 11) | (s >>> 21)) >>> 0;
 }
 
@@ -71,7 +73,7 @@ function writeHalves(hi: number, lo: number): Uint8Array {
  * intermediate (a_1, a_0) pair so the page — and the tests — can compare each
  * round with RFC 8891 Appendix A.4/A.5 rather than only the final block.
  */
-export function magmaRounds(roundKeys: readonly number[], block: Uint8Array): {
+export function magmaRounds(roundKeys: readonly number[], block: Uint8Array, sbox: SBoxSet = SBOX_PARAM_Z): {
   out: Uint8Array;
   trace: [number, number][];
 } {
@@ -79,13 +81,13 @@ export function magmaRounds(roundKeys: readonly number[], block: Uint8Array): {
   const trace: [number, number][] = [];
   // G[K_1] .. G[K_31]: (a_1, a_0) -> (a_0, g[k](a_0) xor a_1)
   for (let i = 0; i < 31; i++) {
-    const next = (magmaG(roundKeys[i], a0) ^ a1) >>> 0;
+    const next = (magmaG(roundKeys[i], a0, sbox) ^ a1) >>> 0;
     a1 = a0;
     a0 = next;
     trace.push([a1, a0]);
   }
   // G*[K_32]: (a_1, a_0) -> (g[k](a_0) xor a_1) || a_0 — no final swap.
-  const last = (magmaG(roundKeys[31], a0) ^ a1) >>> 0;
+  const last = (magmaG(roundKeys[31], a0, sbox) ^ a1) >>> 0;
   return { out: writeHalves(last, a0), trace };
 }
 
@@ -95,17 +97,22 @@ export class Magma implements BlockCipher {
   readonly roundKeys: readonly number[];
   private readonly reversed: readonly number[];
 
-  constructor(key: Uint8Array) {
+  /**
+   * `sbox` exists for one exhibit only: swapping two entries of param-Z shows
+   * that a different table is a different cipher, which is what "GOST" meant
+   * before 2015. Magma itself is param-Z, and the default.
+   */
+  constructor(key: Uint8Array, readonly sbox: SBoxSet = SBOX_PARAM_Z) {
     this.roundKeys = magmaRoundKeys(key);
     this.reversed = this.roundKeys.slice().reverse();
   }
 
   encryptBlock(block: Uint8Array): Uint8Array {
-    return magmaRounds(this.roundKeys, block).out;
+    return magmaRounds(this.roundKeys, block, this.sbox).out;
   }
 
   decryptBlock(block: Uint8Array): Uint8Array {
     // D = G*[K_1] G[K_2] ... G[K_32]: the same network with the keys reversed.
-    return magmaRounds(this.reversed, block).out;
+    return magmaRounds(this.reversed, block, this.sbox).out;
   }
 }
