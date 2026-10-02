@@ -17,7 +17,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'list' : [['list'], ['html', { open: 'never' }]],
   use: {
-    baseURL: 'http://localhost:4659/crypto-lab-mgm-mode/',
+    baseURL: 'http://localhost:4714/crypto-lab-mgm-mode/',
     colorScheme: 'dark',
     // Only for local runs in an environment whose Playwright browser build does
     // not match this package's version. CI never sets it.
@@ -31,8 +31,8 @@ export default defineConfig({
   webServer: {
     // Build before serving: `vite preview` serves whatever is already in dist/,
     // so without this a failing build passes green against the previous bundle.
-    command: 'npm run build && npm run preview -- --port 4659 --strictPort',
-    url: 'http://localhost:4659/crypto-lab-mgm-mode/',
+    command: 'npm run build && npm run preview -- --port 4714 --strictPort',
+    url: 'http://localhost:4714/crypto-lab-mgm-mode/',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },
