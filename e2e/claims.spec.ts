@@ -219,12 +219,38 @@ test.describe('Exhibit 5: the limits are the RFC formulas, not prose', () => {
   test('the displayed bounds equal 3(s + 4q)^2 / 2^n recomputed here', async ({ page }) => {
     await open(page);
     const log2Bytes = Number(await page.locator('#lm-volume').inputValue());
+    // q is a control, not a constant: the plot fixed it at 1 until 2026-11-17,
+    // which drew a bound for a single message the RFC's own length rule forbids.
+    const q = 2 ** Number(await page.locator('#lm-messages').inputValue());
     for (const [id, n] of [['#lm-magma', 64], ['#lm-kuz', 128]] as const) {
       const s = 2 ** log2Bytes / (n / 8);
-      const expected = Math.log2(3 * (s + 4) ** 2) - n;
+      const expected = Math.log2(3 * (s + 4 * q) ** 2) - n;
       const shown = Number(await page.locator(id).getAttribute('data-log2'));
       expect(Math.abs(shown - expected)).toBeLessThan(0.01);
     }
+  });
+
+  test('the RFC 9058 section 4.1 length rule is applied per message, not per key', async ({ page }) => {
+    await open(page);
+    // 0 < |A| + |P| < 2^{n/2} BITS: 2^32 for Magma, 2^64 for Kuznyechik.
+    const limitBytes = { 64: 2 ** 32 / 8, 128: 2 ** 64 / 8 } as const;
+    const check = async () => {
+      const total = 2 ** Number(await page.locator('#lm-volume').inputValue());
+      const perMessage = total / 2 ** Number(await page.locator('#lm-messages').inputValue());
+      for (const [id, n] of [['#lm-magma-len', 64], ['#lm-kuz-len', 128]] as const) {
+        const over = (await page.locator(id).getAttribute('data-over')) === 'true';
+        expect(over).toBe(perMessage >= limitBytes[n]);
+      }
+    };
+    // As shipped, the default must be a legal input for BOTH ciphers.
+    expect(await page.locator('#lm-magma-len').getAttribute('data-over')).toBe('false');
+    expect(await page.locator('#lm-kuz-len').getAttribute('data-over')).toBe('false');
+    await check();
+    // One message of the whole volume is not: Magma's limit is 512 MiB.
+    await page.locator('#lm-messages').fill('0');
+    await page.locator('#lm-messages').dispatchEvent('input');
+    expect(await page.locator('#lm-magma-len').getAttribute('data-over')).toBe('true');
+    await check();
   });
 
   test('records per TLSTREE key equal 2^(trailing zeros of the C_3 printed beside them)', async ({ page }) => {

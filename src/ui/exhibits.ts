@@ -7,6 +7,7 @@ import { mgmEncrypt } from '../mgm/mgm';
 import { reuseIcn } from '../mgm/misuse';
 import {
   TLSTREE_SUITES, log2ConfidentialityBound, maxBlocksForBound, recordsPerLeafKey,
+  exceedsInputLimit, maxInputBits,
 } from '../mgm/limits';
 import { RFC9058_VECTORS } from '../mgm/vectors';
 import { byId, el, setVerdict } from './dom';
@@ -132,13 +133,24 @@ function fmtBytes(bytes: number): string {
 
 export function mountLimits(): void {
   const slider = byId<HTMLInputElement>('lm-volume');
+  /* q was fixed at 1 until 2026-11-17, which made the plot say something the
+     RFC forbids: at the old 32 GiB default, one message of 2^38 bits is far
+     past section 4.1's 2^32-bit ceiling for Magma, so the bound was drawn for
+     an input this lab's own engine refuses. q is a control now, and the length
+     rule is shown beside the bound rather than left implicit. */
+  const messages = byId<HTMLInputElement>('lm-messages');
   const update = () => {
     const log2Bytes = Number(slider.value);
     const bytes = 2 ** log2Bytes;
+    const log2q = Number(messages.value);
+    const q = 2 ** log2q;
+    const perMessage = bytes / q;
     byId('lm-volume-out').textContent = `${fmtBytes(bytes)} (2^${log2Bytes} bytes) under one key`;
-    for (const [n, id] of [[64, 'lm-magma'], [128, 'lm-kuz']] as const) {
+    byId('lm-messages-out').textContent =
+      `${q.toLocaleString('en-US')} message${q === 1 ? '' : 's'} (q = 2^${log2q}), so ${fmtBytes(perMessage)} each`;
+    for (const [n, id, lenId] of [[64, 'lm-magma', 'lm-magma-len'], [128, 'lm-kuz', 'lm-kuz-len']] as const) {
       const s = bytes / (n / 8);
-      const adv = log2ConfidentialityBound({ n, s, q: 1 });
+      const adv = log2ConfidentialityBound({ n, s, q });
       const cell = byId(id);
       // A bound of 1 or more is vacuous: it no longer rules anything out.
       const broken = adv >= 0;
@@ -147,14 +159,23 @@ export function mountLimits(): void {
         ? `bound 2^${adv.toFixed(1)}: at or above 1, so the bound guarantees nothing at all`
         : `bound 2^${adv.toFixed(1)} (about 1 in ${fmtOdds(-adv)})`;
       cell.className = broken ? 'bad-text' : adv > -32 ? 'warn-text' : 'ok-text';
+
+      const over = exceedsInputLimit(n, perMessage);
+      const len = byId(lenId);
+      len.dataset.over = String(over);
+      len.textContent = over
+        ? `${fmtBytes(perMessage)} per message is at or past the 2^${n / 2}-bit limit (${fmtBytes(maxInputBits(n) / 8)}): MGM must not encrypt this`
+        : `${fmtBytes(perMessage)} per message is inside the 2^${n / 2}-bit limit (${fmtBytes(maxInputBits(n) / 8)})`;
+      len.className = over ? 'bad-text' : 'ok-text';
     }
   };
   slider.addEventListener('input', update);
+  messages.addEventListener('input', update);
   update();
 
   const target = 32;
   byId('lm-budget').replaceChildren(...([64, 128] as const).map((n) => {
-    const blocks = maxBlocksForBound(n, target, 1);
+    const blocks = maxBlocksForBound(n, target, 2 ** Number(messages.value));
     return el('li', { 'data-n': n, text: `n = ${n}: about ${fmtBytes(blocks * (n / 8))} keeps the confidentiality bound at or below 2^-${target}.` });
   }));
 

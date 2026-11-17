@@ -11,6 +11,21 @@
  *
  *    Same formula, n = 64 versus n = 128: the 2^n denominator is the whole story.
  *
+ * 1b. RFC 9058 section 4.1 also restricts a SINGLE message, which is a different
+ *    question from how long a key may live. Verbatim:
+ *
+ *        "Associated authenticated data A, 0 <= |A| < 2^{n/2}."
+ *        "Plaintext P, 0 <= |P| < 2^{n/2}."
+ *        "The length of the associated data A and of the plaintext P MUST be
+ *         such that 0 < |A| + |P| < 2^{n/2}."
+ *
+ *    Lengths are in BITS, so for n = 64 the combined limit is 2^32 bits, which
+ *    is 512 MiB; for n = 128 it is 2^64 bits. The combined clause implies the
+ *    two individual ones, and `src/mgm/mgm.ts` enforces exactly that pair --
+ *    the empty-input half and the combined half -- on every call. These helpers
+ *    exist so the teaching surface can SAY where the limit is without the
+ *    reader having to run an encryption into the error.
+ *
  * 2. RFC 9367 (GOST cipher suites for TLS 1.3) re-keys inside a connection with
  *    TLSTREE: the key for record `seqnum` depends on seqnum & C_3, so a leaf key
  *    lasts 2^(trailing zero bits of C_3) records. The constants are the RFC's
@@ -46,6 +61,26 @@ export function log2IntegrityBound({ n, s, q }: AdvantageInput, l: number, tagBi
  */
 export function maxBlocksForBound(n: 64 | 128, targetBits: number, q: number): number {
   return Math.sqrt(2 ** (n - targetBits) / 3) - 4 * q;
+}
+
+/**
+ * The RFC 9058 section 4.1 ceiling on |A| + |P| for one message, in BITS.
+ * 2^{n/2}: 2^32 for Magma, 2^64 for Kuznyechik.
+ */
+export function maxInputBits(n: 64 | 128): number {
+  return 2 ** (n / 2);
+}
+
+/**
+ * Is one message of `bytes` (associated data and plaintext together) outside
+ * what RFC 9058 section 4.1 permits for an n-bit block?
+ *
+ * Both halves of the RFC's clause, in the RFC's direction: `0 <` rejects the
+ * empty input, and `< 2^{n/2}` makes the ceiling EXCLUSIVE -- a message of
+ * exactly 2^{n/2} bits is already too long, not the last legal one.
+ */
+export function exceedsInputLimit(n: 64 | 128, bytes: number): boolean {
+  return bytes <= 0 || bytes * 8 >= maxInputBits(n);
 }
 
 export interface TlsTreeSuite {

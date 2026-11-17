@@ -310,10 +310,26 @@
             <input type="range" id="lm-volume" min="10" max="70" step="1" value="35" />
             <p id="lm-volume-out" class="mono" aria-live="polite"></p>
           </div>
+          <div class="stack">
+            <label for="lm-messages">Messages it is split into (<em>q</em>)</label>
+            <input type="range" id="lm-messages" min="0" max="40" step="1" value="7" />
+            <p id="lm-messages-out" class="mono" aria-live="polite"></p>
+          </div>
           <dl class="kv">
             <dt>Magma (n = 64)</dt><dd id="lm-magma" class="mono"></dd>
+            <dt>Magma: one message under RFC 9058 section 4.1</dt><dd id="lm-magma-len" class="mono"></dd>
             <dt>Kuznyechik (n = 128)</dt><dd id="lm-kuz" class="mono"></dd>
+            <dt>Kuznyechik: one message under RFC 9058 section 4.1</dt><dd id="lm-kuz-len" class="mono"></dd>
           </dl>
+          <p class="hint">
+            Two different limits, and only one of them is a bound. The rows above are RFC 9058 section 6's
+            security bound, which is about how much data lives under one key. The rows beside them are section
+            4.1's hard input rule, <span class="mono">0 &lt; |A| + |P| &lt; 2<sup>n/2</sup></span> bits &mdash; 2<sup>32</sup>
+            bits, 512 MiB, for Magma and 2<sup>64</sup> bits for Kuznyechik &mdash; which this lab's own engine
+            refuses to encrypt past. Splitting the same total across more messages is what brings each one back
+            inside that rule; it does not help the bound, which counts <em>s</em> over every message and grows
+            slightly with <em>q</em>.
+          </p>
           <ul id="lm-budget" class="plain"></ul>
           <p>
             Real deployments act on this. RFC 9367's GOST cipher suites for TLS 1.3 change the record key inside a
