@@ -34,13 +34,12 @@ channels: nothing here is constant-time, keys live in page memory, and the code 
    through the tag one block at a time: `Z_i`, `H_i = E_K(Z_i)`, `H_i ⊗ block`, the running sum, the length block and
    the final encryption. (The GCM column uses MGM's cipher and field to show the structure; it is not AES-GCM.)
 3. **Check every value against RFC 9058.** Runs each of the RFC's four Appendix A examples and sets every computed
-   value — each `Y_i`, `E_K(Y_i)`, `Z_i`, `H_i`, running sum, the length block, the encrypted sum and the tag — beside
+   value — each `Y_i`, `E_K(Y_i)`, `Z_i`, `H_i`, running sum, the length block, the final sum and its encrypted tag — beside
    the value the RFC prints.
-4. **Repeat the nonce.** Two messages under one ICN: both verify, and `C1 ⊕ C2 = P1 ⊕ P2`, so knowing one message
-   reveals the other without the key. The verdict reads **VERIFIED — AND LEAKED**; a checkbox gives the second
+4. **Repeat the nonce.** Two messages under one ICN: both verify, and `C1 ⊕ C2 = P1 ⊕ P2`, so the equality holds over the common prefix of the two messages. The verdict reads **VERIFIED — AND LEAKED**; a checkbox gives the second
    message its own ICN as the control.
 5. **64 bits versus 128.** RFC 9058's confidentiality bound `3(s + 4q)² / 2^n` for a chosen data volume, for both
-   block sizes, and the volume that keeps it under 2^-32 for each. Then RFC 9367's TLSTREE re-keying, with records
+   block sizes, and the total block budget at the selected message count for a 2^-32 target. Then RFC 9367's TLSTREE re-keying, with records
    per key derived from each suite's `C_3` constant: 8,192 for Kuznyechik-L, 128 for Magma-L, 8 and 1 for the S suites.
 6. **Magma's S-box.** GOST 28147-89 defined no S-boxes (RFC 5830: "the standard doesn't define any S-boxes"); Magma
    fixes `id-tc26-gost-28147-param-Z`. Swap two entries and watch the same key and block give a different cipher.

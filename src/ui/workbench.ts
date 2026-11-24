@@ -169,14 +169,18 @@ function renderSealed(): void {
 
   const flip = (target: 'ct' | 'tag' | 'aad') => {
     if (target === 'aad') {
-      const b = enc.encode(aad.value);
-      if (b.length === 0) return;
-      b[0] ^= 0x01;
-      aad.value = dec.decode(b);
+      const first = aad.value.codePointAt(0);
+      if (first === undefined) return;
+      aad.value = String.fromCodePoint(first ^ 1) + aad.value.slice(String.fromCodePoint(first).length);
     } else {
       const field = target === 'ct' ? ct : tag;
       const clean = field.value.replace(/\s+/g, '');
       if (clean.length < 2) return;
+      if (!/^(?:[0-9a-f]{2})+$/i.test(clean)) {
+        setVerdict(verdict, 'bad', 'Enter whole hexadecimal bytes before flipping a bit.', 'refused');
+        opened.textContent = '';
+        return;
+      }
       const b = hexToBytes(clean);
       b[b.length - 1] ^= 0x01;
       field.value = target === 'ct' ? blockHex(bytesToHex(b), n) : bytesToHex(b);
@@ -199,6 +203,12 @@ function renderSealed(): void {
       el('button', { type: 'button', id: 'rx-open', class: 'primary', text: 'Verify and open' })),
     verdict, opened);
 
+  for (const field of [ct, tag, aad]) {
+    field.addEventListener('input', () => {
+      opened.textContent = '';
+      setVerdict(verdict, 'idle', 'Received values changed. Verify them again.', 'pending');
+    });
+  }
   byId('rx-flip-ct').addEventListener('click', () => flip('ct'));
   byId('rx-flip-aad').addEventListener('click', () => flip('aad'));
   byId('rx-flip-tag').addEventListener('click', () => flip('tag'));
@@ -213,13 +223,13 @@ function renderSealed(): void {
     if (!sealed) return;
     try {
       const c = parseHex(ct.value, ct.value.replace(/\s+/g, '').length / 2, 'The ciphertext');
-      const t = hexToBytes(tag.value.replace(/\s+/g, ''));
+      const t = parseHex(tag.value, result.tag.length, 'The configured authentication tag');
       const r = mgmDecrypt(sealed.cipher, sealed.icn, enc.encode(aad.value), c, t);
       if (r.ok) {
         setVerdict(verdict, 'ok', 'VERIFIED: the recomputed tag equals T, so the plaintext is released.', 'verified');
         opened.textContent = `P = "${dec.decode(r.plaintext)}"`;
       } else {
-        setVerdict(verdict, 'bad', `REJECTED: the recomputed tag is ${bytesToHex(r.expectedTag)}, not ${bytesToHex(t)}. No plaintext is released, not even partly.`, 'rejected');
+        setVerdict(verdict, 'bad', 'REJECTED: tag verification failed. No plaintext is released.', 'rejected');
         opened.textContent = '';
       }
     } catch (e) {

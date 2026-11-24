@@ -288,3 +288,52 @@ test.describe('honest scoping is on the page', () => {
     await expect(page.locator('#ex-reuse')).toContainText('claims no forgery');
   });
 });
+
+test('receiver clears the last result on manual changes and enforces the chosen tag size', async ({ page }) => {
+  await open(page);
+  for (const field of ['#rx-aad', '#rx-tag', '#rx-ct']) {
+    await page.locator('#rx-restore').click();
+    await page.locator('#rx-open').click();
+    await expect(page.locator('#rx-verdict')).toHaveAttribute('data-verdict', 'verified');
+    await page.locator(field).fill('00');
+    await expect(page.locator('#rx-verdict')).toHaveAttribute('data-verdict', 'pending');
+    await expect(page.locator('#rx-plain')).toBeEmpty();
+  }
+  await page.locator('#rx-restore').click();
+  await page.locator('#rx-tag').fill('00000000');
+  await page.locator('#rx-open').click();
+  await expect(page.locator('#rx-verdict')).toContainText('must be exactly 16 hex digits');
+  await expect(page.locator('#rx-plain')).toBeEmpty();
+  await page.locator('#wb-taglen').selectOption('4');
+  await page.locator('#wb-seal').click();
+  await page.locator('#rx-open').click();
+  await expect(page.locator('#rx-verdict')).toHaveAttribute('data-verdict', 'verified');
+});
+
+test('message count updates the block budget and a partial plaintext takes one block', async ({ page }) => {
+  await open(page);
+  await page.locator('#lm-messages').fill('20');
+  await expect(page.locator('#lm-budget [data-n="64"]')).toContainText('no positive message size');
+  await page.locator('#lm-volume').fill('10');
+  await expect(page.locator('#lm-messages')).toHaveValue('10');
+  await expect(page.locator('#lm-messages-out')).toContainText('1.0 bytes each');
+  const log2 = Math.log2(3 * (1024 + 4 * 1024) ** 2) - 64;
+  await expect(page.locator('#lm-magma')).toHaveAttribute('data-log2', log2.toFixed(2));
+});
+
+test('missing published intermediate cannot count as a full reference match', async ({ page }) => {
+  const lastCounter = RFC9058_VECTORS[0].y.at(-1)!;
+  await page.route('**/assets/*.js', async route => {
+    const response = await route.fetch();
+    const original = await response.text();
+    const entry = new RegExp(/,\s*(["'`])/.source + lastCounter + '\\1');
+    expect(entry.test(original)).toBe(true);
+    const reduced = original.replace(entry, '');
+    await route.fulfill({ response, body: reduced });
+  });
+  await open(page);
+  await page.locator('#rfc-run').click();
+  await expect(page.locator('#rfc-verdict')).toHaveAttribute('data-verdict', 'rfc-mismatch');
+  await expect(page.locator('#rfc-verdict')).toContainText('39 of 40');
+  await expect(page.locator('#rfc-table-body tr[data-match="no"]')).toContainText('Missing RFC value');
+});

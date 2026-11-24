@@ -290,7 +290,7 @@
             <dt>Receiver's verdicts</dt><dd><span id="ru-v1"></span>; <span id="ru-v2"></span></dd>
             <dt>C1 ⊕ C2 (what an eavesdropper computes)</dt><dd id="ru-xc" class="mono"></dd>
             <dt>P1 ⊕ P2</dt><dd id="ru-xp" class="mono"></dd>
-            <dt>C1 ⊕ C2 ⊕ P1 (message 2, read without the key)</dt><dd id="ru-recovered" class="mono"></dd>
+            <dt>C1 ⊕ C2 ⊕ P1 over the shared prefix</dt><dd id="ru-recovered" class="mono"></dd>
           </dl>
           <p class="hint">
             Not shown, because it is not demonstrated here: a forged tag. GCM's nonce reuse hands an attacker H;
@@ -303,7 +303,7 @@
           <p>
             RFC 9058 section 6 bounds an attacker's advantage against MGM's confidentiality by
             <span class="mono">3(s + 4q)² / 2<sup>n</sup></span> for <em>s</em> blocks in <em>q</em> messages under
-            one key. The formula is the same for both ciphers; only <em>n</em> changes, and it sits in the exponent.
+            one key. This calculator splits whole bytes equally among nonempty plaintext messages with empty associated data. A partial block counts once per message. At a fixed byte volume the block size affects both <em>s</em> and the denominator.
           </p>
           <div class="stack">
             <label for="lm-volume">Data encrypted under one key</label>
@@ -328,7 +328,7 @@
             bits, 512 MiB, for Magma and 2<sup>64</sup> bits for Kuznyechik &mdash; which this lab's own engine
             refuses to encrypt past. Splitting the same total across more messages is what brings each one back
             inside that rule; it does not help the bound, which counts <em>s</em> over every message and grows
-            slightly with <em>q</em>.
+            with <em>q</em>.
           </p>
           <ul id="lm-budget" class="plain"></ul>
           <p>

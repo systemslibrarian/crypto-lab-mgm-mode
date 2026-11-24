@@ -3,7 +3,7 @@ import { Kuznyechik } from '../cipher/kuznyechik';
 import { Magma, SBOX_PARAM_Z } from '../cipher/magma';
 import { bytesToHex, hexToBytes } from '../cipher/bytes';
 import type { BlockCipher } from '../cipher/types';
-import { mgmEncrypt } from '../mgm/mgm';
+import { mgmDecrypt, mgmEncrypt } from '../mgm/mgm';
 import { reuseIcn } from '../mgm/misuse';
 import {
   TLSTREE_SUITES, log2ConfidentialityBound, maxBlocksForBound, recordsPerLeafKey,
@@ -38,12 +38,20 @@ function runRfc(): void {
   const r = mgmEncrypt(cipher, hexToBytes(v.icn), hexToBytes(v.aad), hexToBytes(v.plaintext));
   const t = r.trace;
   const pairs: [string, string, string][] = [];
-  v.y.forEach((x, i) => pairs.push([`Y_${i + 1}`, x, bytesToHex(t.y[i] ?? new Uint8Array())]));
-  v.keystream.forEach((x, i) => pairs.push([`E_K(Y_${i + 1})`, x, bytesToHex(t.keystream[i] ?? new Uint8Array())]));
+  function addSeries(label: (index: number) => string, expected: string[], computed: Uint8Array[], count: number) {
+    for (let i = 0; i < Math.max(count, expected.length, computed.length); i++) {
+      pairs.push([label(i + 1), expected[i] ?? 'Missing RFC value',
+        computed[i] ? bytesToHex(computed[i]) : 'Missing computed value']);
+    }
+  }
+  const dataBlocks = Math.ceil(v.plaintext.length / (2 * cipher.blockBytes));
+  const authBlocks = dataBlocks + Math.ceil(v.aad.length / (2 * cipher.blockBytes));
+  addSeries(i => `Y_${i}`, v.y, t.y, dataBlocks);
+  addSeries(i => `E_K(Y_${i})`, v.keystream, t.keystream, dataBlocks);
   if (v.plaintext.length) pairs.push(['C', v.ciphertext, bytesToHex(r.ciphertext)]);
-  v.z.forEach((x, i) => pairs.push([`Z_${i + 1}`, x, bytesToHex(t.z[i] ?? new Uint8Array())]));
-  v.h.forEach((x, i) => pairs.push([`H_${i + 1}`, x, bytesToHex(t.h[i] ?? new Uint8Array())]));
-  v.runningSum.forEach((x, i) => pairs.push([`sum after block ${i + 1}`, x, bytesToHex(t.runningSum[i] ?? new Uint8Array())]));
+  addSeries(i => `Z_${i}`, v.z, t.z, authBlocks + 1);
+  addSeries(i => `H_${i}`, v.h, t.h, authBlocks + 1);
+  addSeries(i => `sum after block ${i}`, v.runningSum, t.runningSum, authBlocks);
   pairs.push(['len(A) || len(C)', v.lengthBlock, bytesToHex(t.lengthBlock)]);
   pairs.push(['sum ⊕ H_last ⊗ len', v.finalSum, bytesToHex(t.finalSum)]);
   pairs.push(['Tag T', v.tag, bytesToHex(r.tag)]);
@@ -97,7 +105,8 @@ function runReuse(): void {
     const len = Math.min(p1.length, p2.length);
     const xc = a.ciphertext.subarray(0, len).map((x, i) => x ^ b.ciphertext[i]);
     const xp = p1.subarray(0, len).map((x, i) => x ^ p2[i]);
-    d = { c1: a.ciphertext, c2: b.ciphertext, xorCiphertexts: xc, xorPlaintexts: xp, verified1: true, verified2: true,
+    d = { c1: a.ciphertext, c2: b.ciphertext, xorCiphertexts: xc, xorPlaintexts: xp, verified1: mgmDecrypt(cipher, icn, aad, a.ciphertext, a.tag).ok,
+      verified2: mgmDecrypt(cipher, icn2, aad, b.ciphertext, b.tag).ok,
       leaks: bytesToHex(xc) === bytesToHex(xp) };
   } else {
     d = reuseIcn(cipher, icn, aad, p1, p2);
@@ -111,13 +120,17 @@ function runReuse(): void {
   byId('ru-v2').textContent = d.verified2 ? '✓ message 2 verifies' : '✗ message 2 rejected';
   byId('ru-result').hidden = false;
   byId('ru-result').dataset.leaks = String(d.leaks);
-  if (d.leaks) {
+  if (!d.verified1 || !d.verified2) {
+    setVerdict(byId('ru-verdict'), 'bad', 'Receiver verification failed. Check both receiver verdicts.', 'receiver-failed');
+  } else if (distinct && d.leaks) {
+    setVerdict(byId('ru-verdict'), 'warn', 'The XOR values happen to agree over this sample with distinct ICNs.', 'coincidence');
+  } else if (d.leaks) {
     setVerdict(byId('ru-verdict'), 'bad',
-      `VERIFIED — AND LEAKED. Both messages pass every check the receiver makes, and C1 ⊕ C2 equals P1 ⊕ P2 over all ${len} common bytes. Anyone who knows or guesses message 1 reads message 2 without the key.`,
+      `VERIFIED — AND LEAKED. Both messages pass every check the receiver makes, and C1 ⊕ C2 equals P1 ⊕ P2 over all ${len} common bytes. The displayed equality applies to those overlapping bytes.`,
       'verified-and-leaked');
   } else {
     setVerdict(byId('ru-verdict'), 'ok',
-      `Distinct ICNs: C1 ⊕ C2 no longer equals P1 ⊕ P2, so xoring the ciphertexts tells an eavesdropper nothing about the plaintexts.`,
+      `With distinct ICNs, the two XOR values differ for these inputs. This comparison tests the displayed samples.`,
       'no-leak');
   }
 }
@@ -142,6 +155,8 @@ export function mountLimits(): void {
   const update = () => {
     const log2Bytes = Number(slider.value);
     const bytes = 2 ** log2Bytes;
+    // The model splits whole bytes equally among nonempty messages.
+    messages.max = String(Math.min(40, log2Bytes));
     const log2q = Number(messages.value);
     const q = 2 ** log2q;
     const perMessage = bytes / q;
@@ -149,7 +164,7 @@ export function mountLimits(): void {
     byId('lm-messages-out').textContent =
       `${q.toLocaleString('en-US')} message${q === 1 ? '' : 's'} (q = 2^${log2q}), so ${fmtBytes(perMessage)} each`;
     for (const [n, id, lenId] of [[64, 'lm-magma', 'lm-magma-len'], [128, 'lm-kuz', 'lm-kuz-len']] as const) {
-      const s = bytes / (n / 8);
+      const s = q * Math.ceil(perMessage / (n / 8));
       const adv = log2ConfidentialityBound({ n, s, q });
       const cell = byId(id);
       // A bound of 1 or more is vacuous: it no longer rules anything out.
@@ -168,16 +183,17 @@ export function mountLimits(): void {
         : `${fmtBytes(perMessage)} per message is inside the 2^${n / 2}-bit limit (${fmtBytes(maxInputBits(n) / 8)})`;
       len.className = over ? 'bad-text' : 'ok-text';
     }
+    byId('lm-budget').replaceChildren(...([64, 128] as const).map((n) => {
+      const blocks = Math.floor(maxBlocksForBound(n, 32, q));
+      const text = blocks < q
+        ? `n = ${n}: no positive message size meets the 2^-32 target for ${q.toLocaleString('en-US')} messages.`
+        : `n = ${n}: the 2^-32 bound allows up to ${blocks.toLocaleString('en-US')} total blocks at this message count. The per-message length rule also applies.`;
+      return el('li', { 'data-n': n, text });
+    }));
   };
   slider.addEventListener('input', update);
   messages.addEventListener('input', update);
   update();
-
-  const target = 32;
-  byId('lm-budget').replaceChildren(...([64, 128] as const).map((n) => {
-    const blocks = maxBlocksForBound(n, target, 2 ** Number(messages.value));
-    return el('li', { 'data-n': n, text: `n = ${n}: about ${fmtBytes(blocks * (n / 8))} keeps the confidentiality bound at or below 2^-${target}.` });
-  }));
 
   byId('lm-tls-body').replaceChildren(...TLSTREE_SUITES.map((s) => el('tr', {},
     el('th', { scope: 'row', class: 'mono', text: s.suite }),
@@ -212,6 +228,8 @@ export function mountSbox(): void {
     const a = Number(byId<HTMLSelectElement>('sb-a').value);
     const b = Number(byId<HTMLSelectElement>('sb-b').value);
     if (a === b) {
+      render(null, -1, -1, -1);
+      byId('sb-variant').textContent = '—';
       setVerdict(byId('sb-verdict'), 'warn', 'Pick two different positions; swapping an entry with itself changes nothing.', 'noop');
       return;
     }
@@ -236,6 +254,13 @@ export function mountSbox(): void {
   for (const id of ['sb-row', 'sb-a', 'sb-b']) {
     byId<HTMLSelectElement>(id).replaceChildren(...Array.from({ length: id === 'sb-row' ? 8 : 16 }, (_, i) =>
       el('option', { value: i, text: id === 'sb-row' ? `Pi'_${i}` : `entry ${i.toString(16)}` })));
+  }
+  for (const id of ['sb-row', 'sb-a', 'sb-b']) {
+    byId(id).addEventListener('change', () => {
+      render(null, -1, -1, -1);
+      byId('sb-variant').textContent = '—';
+      setVerdict(byId('sb-verdict'), 'idle', 'Selection changed. Run the swap to compare.', 'pending');
+    });
   }
   byId<HTMLSelectElement>('sb-b').value = '1';
   setVerdict(byId('sb-verdict'), 'idle', 'param-Z, the table Magma fixes.', 'idle');
